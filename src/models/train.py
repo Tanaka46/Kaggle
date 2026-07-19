@@ -26,7 +26,7 @@ def load_config(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def build_model(config: dict):
+def build_model(config: dict, n_estimators: int | None = None):
     model_name = config["model"]
     params = config["params"]
     if model_name in ("ridge", "lasso"):
@@ -37,6 +37,12 @@ def build_model(config: dict):
         # Ridge/Lassoは係数に一律の正則化をかけるため、スケール差(one-hotの0/1 と 面積等の数値)を
         # 揃えないと正則化が不均等に効いてしまう。StandardScalerはfold内のtrainのみでfitされる。
         return make_pipeline(StandardScaler(), estimator)
+    if model_name == "lightgbm":
+        import lightgbm as lgb
+        return lgb.LGBMRegressor(
+            **params,
+            n_estimators=n_estimators or config["training"]["num_boost_round"],
+        )
     raise ValueError(f"未対応のmodel: {model_name}")
 
 
@@ -50,16 +56,30 @@ def train(config_path: str) -> float:
 
     folds = get_folds(X, n_splits=config["training"]["n_splits"], seed=config["params"].get("seed", 42))
     oof_pred = np.zeros(len(X))
+    best_iterations = []
 
     for fold_idx, (train_idx, valid_idx) in enumerate(folds):
+        X_train_fold, X_valid_fold = X.iloc[train_idx], X.iloc[valid_idx]
+        y_train_fold, y_valid_fold = y.iloc[train_idx], y.iloc[valid_idx]
+
         model = build_model(config)
-        model.fit(X.iloc[train_idx], y.iloc[train_idx])
-        oof_pred[valid_idx] = model.predict(X.iloc[valid_idx])
+        if config["model"] == "lightgbm":
+            import lightgbm as lgb
+            model.fit(
+                X_train_fold, y_train_fold,
+                eval_set=[(X_valid_fold, y_valid_fold)],
+                callbacks=[lgb.early_stopping(config["training"]["early_stopping_rounds"], verbose=False)],
+            )
+            best_iterations.append(model.best_iteration_)
+        else:
+            model.fit(X_train_fold, y_train_fold)
+        oof_pred[valid_idx] = model.predict(X_valid_fold)
 
     score = rmse(y.to_numpy(), oof_pred)
     print(f"CV RMSE(log): {score:.5f}")
 
-    final_model = build_model(config)
+    final_n_estimators = int(np.mean(best_iterations)) if best_iterations else None
+    final_model = build_model(config, n_estimators=final_n_estimators)
     final_model.fit(X, y)
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)

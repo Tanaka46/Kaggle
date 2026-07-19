@@ -2,4 +2,5 @@ date,method,config,cv_rmse,lb_score,submission_file,notes
 2026-07-19,ridge,configs/ridge.yaml,0.1235953056182749,,,baseline
 2026-07-19,lasso,configs/lasso.yaml,0.12026848165494869,,,baseline
 2026-07-19,ridge,configs/ridge.yaml,0.1235953056182749,,,baseline (train/testの対数変換列ズレバグ修正後)
-2026-07-19,lasso,configs/lasso.yaml,0.12026848165494869,,,baseline (train/testの対数変換列ズレバグ修正後)
+2026-07-19,lasso,configs/lasso.yaml,0.12026848165494869,0.13287,submissions/submission_lasso_2026-07-19.csv,baseline (train/testの対数変換列ズレバグ修正後) LB rank 2383
+2026-07-19,lightgbm,configs/lightgbm.yaml,0.12192918570284772,,,GBDT baseline (ref: jek1wantaufik/buddy ScikitLearn/house)
