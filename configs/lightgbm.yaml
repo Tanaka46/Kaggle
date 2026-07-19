@@ -1,0 +1,21 @@
+model: lightgbm
+
+params:
+  objective: regression
+  metric: rmse
+  learning_rate: 0.05
+  num_leaves: 31
+  max_depth: -1
+  feature_fraction: 0.8
+  bagging_fraction: 0.8
+  bagging_freq: 5
+  min_data_in_leaf: 20
+  lambda_l1: 0.0
+  lambda_l2: 0.0
+  seed: 42
+
+training:
+  num_boost_round: 5000
+  early_stopping_rounds: 100
+  n_splits: 5
+  target_log_transform: true

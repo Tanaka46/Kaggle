@@ -1,0 +1,9 @@
+model: ridge
+
+params:
+  alpha: 10.0
+  random_state: 42
+
+training:
+  n_splits: 5
+  target_log_transform: true
