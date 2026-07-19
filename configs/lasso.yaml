@@ -1,0 +1,10 @@
+model: lasso
+
+params:
+  alpha: 0.0005
+  random_state: 42
+  max_iter: 50000
+
+training:
+  n_splits: 5
+  target_log_transform: true

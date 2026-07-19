@@ -15,8 +15,9 @@ import numpy as np
 import pandas as pd
 import yaml
 
-PROCESSED_DIR = Path("data/processed")
-SUBMISSIONS_DIR = Path("submissions")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+SUBMISSIONS_DIR = PROJECT_ROOT / "submissions"
 
 
 def load_config(path: str) -> dict:
