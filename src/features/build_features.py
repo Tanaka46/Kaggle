@@ -39,11 +39,22 @@ class FeatureBuilder:
     def __init__(self) -> None:
         self.neighborhood_lotfrontage_median_: pd.Series | None = None
         self.mode_fill_values_: dict[str, object] = {}
+        self.skewed_cols_: list[str] | None = None
         self.dummy_columns_: list[str] | None = None
 
     def fit(self, train: pd.DataFrame) -> "FeatureBuilder":
         self.neighborhood_lotfrontage_median_ = train.groupby("Neighborhood")["LotFrontage"].median()
         self.mode_fill_values_ = {col: train[col].mode().iloc[0] for col in MODE_FILL_COLS}
+
+        # 対数変換する列の判定はtrainの歪度のみで決める。test側で別途歪度を測って判定すると、
+        # 列によってtrain/testで対数変換の有無がずれ、特徴量のスケールが食い違って予測が壊れる。
+        prepared = self._encode_quality(self._add_derived_features(self._impute(train)))
+        candidate_cols = [
+            c for c in prepared.select_dtypes(include=[np.number]).columns
+            if c not in ("Id", *QUALITY_COLS)
+        ]
+        skew = prepared[candidate_cols].apply(lambda s: s.skew())
+        self.skewed_cols_ = skew[skew.abs() > 0.75].index.tolist()
         return self
 
     def _impute(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -77,16 +88,9 @@ class FeatureBuilder:
             df[col] = df[col].map(QUALITY_MAP)
         return df
 
-    @staticmethod
-    def _log_transform_skewed(df: pd.DataFrame) -> pd.DataFrame:
+    def _log_transform_skewed(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
-        candidate_cols = [
-            c for c in df.select_dtypes(include=[np.number]).columns
-            if c not in ("Id", *QUALITY_COLS)
-        ]
-        skew = df[candidate_cols].apply(lambda s: s.skew())
-        skewed_cols = skew[skew.abs() > 0.75].index
-        for col in skewed_cols:
+        for col in self.skewed_cols_:
             df[col] = np.log1p(df[col].clip(lower=0))
         return df
 
