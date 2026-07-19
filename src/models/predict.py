@@ -29,7 +29,8 @@ def predict(config_path: str, model_path: str) -> None:
     config = load_config(config_path)
     model = joblib.load(model_path)
 
-    X_test = pd.read_csv(PROCESSED_DIR / "test_features.csv")
+    suffix = "_lgbm" if config["model"] == "lightgbm" else ""
+    X_test = pd.read_csv(PROCESSED_DIR / f"test_features{suffix}.csv")
     test_ids = X_test.pop("Id")
 
     pred = model.predict(X_test)

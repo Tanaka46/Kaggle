@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import joblib
@@ -24,6 +25,17 @@ MODELS_DIR = PROJECT_ROOT / "models"
 def load_config(path: str) -> dict:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def load_train_features(config: dict) -> pd.DataFrame:
+    # LightGBMはone-hotではなくordinalエンコード版(ネイティブカテゴリ分割用)を使う
+    suffix = "_lgbm" if config["model"] == "lightgbm" else ""
+    return pd.read_csv(PROCESSED_DIR / f"train_features{suffix}.csv")
+
+
+def load_categorical_columns() -> list[str]:
+    with open(PROCESSED_DIR / "categorical_columns.json", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def build_model(config: dict, n_estimators: int | None = None):
@@ -48,8 +60,10 @@ def build_model(config: dict, n_estimators: int | None = None):
 
 def train(config_path: str) -> float:
     config = load_config(config_path)
+    is_lightgbm = config["model"] == "lightgbm"
+    cat_cols = load_categorical_columns() if is_lightgbm else None
 
-    X = pd.read_csv(PROCESSED_DIR / "train_features.csv")
+    X = load_train_features(config)
     y = X.pop("SalePrice")
     if config["training"].get("target_log_transform", True):
         y = np.log1p(y)
@@ -63,12 +77,13 @@ def train(config_path: str) -> float:
         y_train_fold, y_valid_fold = y.iloc[train_idx], y.iloc[valid_idx]
 
         model = build_model(config)
-        if config["model"] == "lightgbm":
+        if is_lightgbm:
             import lightgbm as lgb
             model.fit(
                 X_train_fold, y_train_fold,
                 eval_set=[(X_valid_fold, y_valid_fold)],
                 callbacks=[lgb.early_stopping(config["training"]["early_stopping_rounds"], verbose=False)],
+                categorical_feature=cat_cols,
             )
             best_iterations.append(model.best_iteration_)
         else:
@@ -80,7 +95,10 @@ def train(config_path: str) -> float:
 
     final_n_estimators = int(np.mean(best_iterations)) if best_iterations else None
     final_model = build_model(config, n_estimators=final_n_estimators)
-    final_model.fit(X, y)
+    if is_lightgbm:
+        final_model.fit(X, y, categorical_feature=cat_cols)
+    else:
+        final_model.fit(X, y)
 
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     model_path = MODELS_DIR / f"{config['model']}.pkl"
